@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+    <title>游戏辅助工具</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue"></script>
+</head>
+
+<body>
+	<div id="app">
+		<p>{{hi_msg}}</p>
+		<input v-model="server_ip">
+		<button v-on:click="initWS">{{server_conn_btn}}</button>
+		
+		<p class="line">-------------------------------------------------</p>
+		<button v-on:click="onStop">{{stop ? "开始刷新":"停止刷新"}}</button>
+		<p class="line">-------------------------------------------------</p>
+		<p>消息显示区：</p>
+		
+		<table border="" cellspacing="" cellpadding="" id="msgTable">
+			<tr>
+				<td width="80">消息ID</td>
+				<td width="150">消息名称</td>
+				<td width="80">玩家标志</td>
+				<td width="500">消息详情</td>
+				<td width="100">单次操作</td>
+				<td width="100">十次操作</td>
+			</tr>
+			<tr v-for="msg in msgList" v-bind:value="msg">
+				<td><input v-model="msg.id"></td>
+				<td>{{msg.name}}</td>
+				<td>{{msg.connId}}</td>
+				<td><textarea class="autoExpand" style="width:500px; height:50px" rows='3' data-min-rows='1' v-model="msg.body"></textarea></td>
+				<td><button v-on:click="onSendOnce(msg)">单条发送</button></td>
+				<td><button v-on:click="onSendTen(msg)">十条发送</button></td>
+			</tr>
+		</table> 
+
+	</div>
+</body>
+
+<script type="text/javascript">
+
+    var app = new Vue({
+        el: "#app",
+		data: {
+			hi_msg: '欢迎使用游戏辅助工具！',
+			server_ip: '127.0.0.1',
+			server_conn_btn: '请连接服务器',
+			websocket: null,
+			msgList: [],
+			stop: false,
+		},
+		methods: {
+			initWS: function () {
+				if (this.websocket != null) {
+					this.websocket.close();
+					this.websocket = null;
+				}
+				const wsuri = "ws://" + this.server_ip + ":" + "15012" + "/websocket/whatever";//ws地址
+				this.websocket = new WebSocket(wsuri);
+				this.websocket.onopen = this.websocketOnOpen;
+				this.websocket.onerror = this.websocketOnError;
+				this.websocket.onmessage = this.websocketOnMessage;
+				this.websocket.onclose = this.websocketOnClose;
+			},
+			websocketOnOpen() {
+　　　　　　　　console.log("WebSocket连接成功");
+				this.server_conn_btn = '已连至：' + this.server_ip;
+　　　　　　},
+			websocketOnError(e) { //错误
+ 　　　　　　 	console.log("WebSocket连接发生错误");
+　　　　　　},
+			websocketOnClose(e) { //关闭
+ 　　　　　　 	console.log("connection closed (" + e.code + ")");
+　　　　　　},
+			websocketOnMessage(e) { //数据接收
+				const redata = JSON.parse(e.data);
+ 　　　　　　 	console.log(redata);
+				this.onMessage(redata);
+　　　　　　},
+			websocketSend(agentData){//数据发送 
+　　　　　　　　this.websocket.send(agentData); 
+　　　　　　},
+			sendTestMsg(){//数据发送 
+　　　　　　　　this.websocketSend('{cmd:test}'); 
+　　　　　　},
+			onMessage(msg) {//处理消息
+				var cmd = msg.cmd;
+				// 关闭连接
+				if (cmd === 'close') {
+					this.server_conn_btn = '与服务器断开连接';
+					this.websocket = null;
+				}
+				else if (cmd === 'game_msg') {
+					if (this.stop) {
+						return;
+					}
+					var msgArray = msg.msgArray;
+					for (var i = 0; i < msgArray.length; i++) {
+						this.msgList.push(msgArray[i]);
+					}
+					while (this.msgList.length > 12) {
+						this.msgList.shift();
+					}
+				}
+			},
+			onSendOnce(msg) {
+				var json = JSON.stringify(msg);
+				this.websocketSend(json);
+			},
+			onSendTen(msg) {
+				var json = JSON.stringify(msg);
+				for (var i = 0; i < 10; i++) {
+					this.websocketSend(json);
+				}
+			},
+			onStop() {
+				this.stop = !this.stop;
+			},
+		}
+    })
+</script>
+
+</html>
